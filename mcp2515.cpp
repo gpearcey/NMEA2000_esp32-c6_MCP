@@ -8,7 +8,7 @@
 #define MISO 2
 #define MOSI 7
 #define SCK  6
-#define CS   16
+//#define CS   16
 #define INT 4
 
 
@@ -25,31 +25,10 @@ const struct MCP2515::RXBn_REGS MCP2515::RXB[N_RXBUFFERS] = {
 
 MCP2515::MCP2515(spi_device_handle_t *s)
 {
-    spi = s;
-    // ESP32SIM800 START
-    esp_err_t ret;
-    spi_bus_config_t buscfg={};
-    buscfg.miso_io_num=MISO;
-    buscfg.mosi_io_num=MOSI;
-    buscfg.sclk_io_num=SCK;
-    buscfg.quadwp_io_num=-1;
-    buscfg.quadhd_io_num=-1;  
 
-    spi_device_interface_config_t devcfg={};
-
-    devcfg.clock_speed_hz=1*1000*1000,               //Clock out at 1 MHz
-    devcfg.mode=0,                                   
-    devcfg.spics_io_num=CS,                          //Chip select
-    devcfg.queue_size=1024,
-
-    //Initialize the SPI bus
-    ret=spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
-    assert(ret==ESP_OK);
-    //Attach the MCP2515 to the SPI bus
-    ret=spi_bus_add_device(SPI2_HOST, &devcfg, &*spi);
-    assert(ret==ESP_OK);
-    // ESP32SIM800 END 
 }
+
+MCP2515::MCP2515(){}
 
 MCP2515::ERROR MCP2515::reset(void)
 {
@@ -708,7 +687,8 @@ MCP2515::ERROR MCP2515::setFilter(const RXF num, const bool ext, const uint32_t 
 
 MCP2515::ERROR MCP2515::sendMessage(const TXBn txbn, const struct can_frame *frame)
 {
-    if (frame->can_dlc > CAN_MAX_DLEN) {
+
+    if (frame->len > CAN_MAX_DLEN) {
         return ERROR_FAILTX;
     }
 
@@ -716,17 +696,17 @@ MCP2515::ERROR MCP2515::sendMessage(const TXBn txbn, const struct can_frame *fra
 
     uint8_t data[13];
 
-    bool ext = (frame->can_id & CAN_EFF_FLAG);
-    bool rtr = (frame->can_id & CAN_RTR_FLAG);
-    uint32_t id = (frame->can_id & (ext ? CAN_EFF_MASK : CAN_SFF_MASK));
+    //bool ext = (frame->id & CAN_EFF_FLAG);
+    bool rtr = (frame->id & CAN_RTR_FLAG);
+    uint32_t id = (frame->id & (1 ? CAN_EFF_MASK : CAN_SFF_MASK));
 
-    prepareId(data, ext, id);
+    prepareId(data, 1, id);
 
-    data[MCP_DLC] = rtr ? (frame->can_dlc | RTR_MASK) : frame->can_dlc;
+    data[MCP_DLC] = rtr ? (frame->len | RTR_MASK) : frame->len;
 
-    memcpy(&data[MCP_DATA], frame->data, frame->can_dlc);
+    memcpy(&data[MCP_DATA], frame->buf, frame->len);
 
-    setRegisters(txbuf->SIDH, data, 5 + frame->can_dlc);
+    setRegisters(txbuf->SIDH, data, 5 + frame->len);
 
     modifyRegister(txbuf->CTRL, TXB_TXREQ, TXB_TXREQ);
 
@@ -737,9 +717,14 @@ MCP2515::ERROR MCP2515::sendMessage(const TXBn txbn, const struct can_frame *fra
     return ERROR_OK;
 }
 
-MCP2515::ERROR MCP2515::sendMessage(const struct can_frame *frame)
+MCP2515::ERROR MCP2515::sendMessage(unsigned long id, uint8_t len, const uint8_t *buf)
 {
-    if (frame->can_dlc > CAN_MAX_DLEN) {
+
+    can_frame frame;
+    frame.buf = buf;
+    frame.id = id;
+    frame.len = len;
+    if (frame->len > CAN_MAX_DLEN) {
         return ERROR_FAILTX;
     }
 
@@ -756,7 +741,7 @@ MCP2515::ERROR MCP2515::sendMessage(const struct can_frame *frame)
     return ERROR_ALLTXBUSY;
 }
 
-MCP2515::ERROR MCP2515::readMessage(const RXBn rxbn, struct can_frame *frame)
+MCP2515::ERROR MCP2515::readMessage(const RXBn rxbn, unsigned long *id, uint8_t *len, uint8_t *buf)
 {
     const struct RXBn_REGS *rxb = &RXB[rxbn];
 
@@ -764,7 +749,7 @@ MCP2515::ERROR MCP2515::readMessage(const RXBn rxbn, struct can_frame *frame)
 
     readRegisters(rxb->SIDH, tbufdata, 5);
 
-    uint32_t id = (tbufdata[MCP_SIDH]<<3) + (tbufdata[MCP_SIDL]>>5);
+    id = (tbufdata[MCP_SIDH]<<3) + (tbufdata[MCP_SIDL]>>5);
 
     if ( (tbufdata[MCP_SIDL] & TXB_EXIDE_MASK) ==  TXB_EXIDE_MASK ) {
         id = (id<<2) + (tbufdata[MCP_SIDL] & 0x03);
@@ -773,8 +758,8 @@ MCP2515::ERROR MCP2515::readMessage(const RXBn rxbn, struct can_frame *frame)
         id |= CAN_EFF_FLAG;
     }
 
-    uint8_t dlc = (tbufdata[MCP_DLC] & DLC_MASK);
-    if (dlc > CAN_MAX_DLEN) {
+    len = (tbufdata[MCP_DLC] & DLC_MASK);
+    if (len > CAN_MAX_DLEN) {
         return ERROR_FAIL;
     }
 
@@ -783,25 +768,25 @@ MCP2515::ERROR MCP2515::readMessage(const RXBn rxbn, struct can_frame *frame)
         id |= CAN_RTR_FLAG;
     }
 
-    frame->can_id = id;
-    frame->can_dlc = dlc;
+    //frame->can_id = id;
+    //frame->can_dlc = dlc;
 
-    readRegisters(rxb->DATA, frame->data, dlc);
+    readRegisters(rxb->DATA, buf, len);
 
     modifyRegister(MCP_CANINTF, rxb->CANINTF_RXnIF, 0);
 
     return ERROR_OK;
 }
 
-MCP2515::ERROR MCP2515::readMessage(struct can_frame *frame)
+MCP2515::ERROR MCP2515::readMessage( unsigned long *id, uint8_t *len, uint8_t *buf)
 {
     ERROR rc;
     uint8_t stat = getStatus();
 
     if ( stat & STAT_RX0IF ) {
-        rc = readMessage(RXB0, frame);
+        rc = readMessage(RXB0, id,len,buf);
     } else if ( stat & STAT_RX1IF ) {
-        rc = readMessage(RXB1, frame);
+        rc = readMessage(RXB1, id,len,buf);
     } else {
         rc = ERROR_NOMSG;
     }
@@ -883,4 +868,147 @@ void MCP2515::clearERRIF()
     //modifyRegister(MCP_EFLG, EFLG_RX0OVR | EFLG_RX1OVR, 0);
     //clearInterrupts();
     modifyRegister(MCP_CANINTF, CANINTF_ERRIF, 0);
+}
+
+
+/*********************************************************************************************************
+** Function name:           enableTxInterrupt
+** Descriptions:            enable interrupt for all tx buffers
+*********************************************************************************************************/
+void MCP_CAN::enableTxInterrupt(bool enable)
+{
+  uint8_t interruptStatus=readRegister(MCP_CANINTE);
+
+  if ( enable ) {
+    interruptStatus |= MCP_TX_INT;
+  } else {
+    interruptStatus &= ~MCP_TX_INT;
+  }
+  
+  setRegister(MCP_CANINTE, interruptStatus);
+}
+
+/*********************************************************************************************************
+** Function name:           begin
+** Descriptions:            init can and set speed
+*********************************************************************************************************/
+esp_err_t MCP_CAN::begin(unsigned char cs_pin)
+{
+    //spi_device_handle_t *spi;
+    // ESP32SIM800 START
+    esp_err_t ret;
+    spi_bus_config_t buscfg={};
+    buscfg.miso_io_num=MISO;
+    buscfg.mosi_io_num=MOSI;
+    buscfg.sclk_io_num=SCK;
+    buscfg.quadwp_io_num=-1;
+    buscfg.quadhd_io_num=-1;  
+
+    spi_device_interface_config_t devcfg={};
+
+    devcfg.clock_speed_hz=1*1000*1000,               //Clock out at 1 MHz
+    devcfg.mode=0,                                   
+    devcfg.spics_io_num=cs_pin,                          //Chip select
+    devcfg.queue_size=1024,
+
+    //Initialize the SPI bus
+    ret=spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+    assert(ret==ESP_OK);
+    //Attach the MCP2515 to the SPI bus
+    ret=spi_bus_add_device(SPI2_HOST, &devcfg, &*spi);
+    assert(ret==ESP_OK);
+    // ESP32SIM800 END 
+    return ret;
+}
+
+/*********************************************************************************************************
+** Function name:           trySendMsgBuf
+** Descriptions:            Try to send message. There is no delays for waiting free buffer.
+*********************************************************************************************************/
+uint8_t MCP_CAN::trySendMsgBuf(unsigned long id, uint8_t len, const uint8_t *buf, uint8_t iTxBuf)
+{
+  //uint8_t txbuf_n;
+
+  //if ( iTxBuf<MCP_N_TXBUFFERS ) { // Use specified buffer
+  //  if ( mcp2515_isTXBufFree(&txbuf_n,iTxBuf) != MCP2515_OK ) return CAN_FAILTX;
+  //} else {
+  //  if ( mcp2515_getNextFreeTXBuf(&txbuf_n) != MCP2515_OK ) return CAN_FAILTX;
+  //}
+
+  
+  
+  return sendMessage(id, len, buf);
+}
+
+/*********************************************************************************************************
+** Function name:           clearBufferTransmitIfFlags
+** Descriptions:            Clear transmit interrupt flags for specific buffer or for all unreserved buffers.
+**                          If interrupt will be used, it is important to clear all flags, when there is no
+**                          more data to be sent. Otherwise IRQ will newer change state.
+*********************************************************************************************************/
+void MCP_CAN::clearBufferTransmitIfFlags(uint8_t flags)
+{ 
+  flags &= MCP_TX_INT;
+  if ( flags==0 ) return;
+  modifyRegister(MCP_CANINTF, flags, 0);
+}
+
+/*********************************************************************************************************
+** Function name:           readRxTxStatus
+** Descriptions:            Read RX and TX interrupt bits. Function uses status reading, but translates.
+**                          result to MCP_CANINTF. With this you can check status e.g. on interrupt sr
+**                          with one single call to save SPI calls. Then use checkClearRxStatus and
+**                          checkClearTxStatus for testing. 
+*********************************************************************************************************/
+uint8_t MCP_CAN::readRxTxStatus(void)
+{
+  uint8_t ret=( getStatus() & ( MCP_STAT_TXIF_MASK | MCP_STAT_RXIF_MASK ) );
+  ret=(ret & MCP_STAT_TX0IF ? MCP_TX0IF : 0) | 
+      (ret & MCP_STAT_TX1IF ? MCP_TX1IF : 0) | 
+      (ret & MCP_STAT_TX2IF ? MCP_TX2IF : 0) | 
+      (ret & MCP_STAT_RXIF_MASK); // Rx bits happend to be same on status and MCP_CANINTF
+  return ret;                
+}
+
+/*********************************************************************************************************
+** Function name:           checkClearTxStatus
+** Descriptions:            Return specified buffer of first found tx CANINTF status and clears it from parameter.
+**                          Note that this does not affect to chip CANINTF at all. You can use this 
+**                          with one single readRxTxStatus call.
+*********************************************************************************************************/
+uint8_t MCP_CAN::checkClearTxStatus(uint8_t *status, uint8_t iTxBuf)
+{
+  uint8_t ret;
+  
+  if ( iTxBuf<MCP_N_TXBUFFERS ) { // Clear specific buffer flag
+    ret = *status & txIfFlag(iTxBuf); *status &= ~txIfFlag(iTxBuf);
+  } else {
+    ret=0;
+    for (uint8_t i = 0; i < MCP_N_TXBUFFERS-nReservedTx; i++) {
+      ret = *status & txIfFlag(i); 
+      if ( ret!=0 ) {
+        *status &= ~txIfFlag(i);
+        return ret;
+      }
+    };
+  }
+
+  return ret;                
+}
+
+/*********************************************************************************************************
+** Function name:           checkClearRxStatus
+** Descriptions:            Return first found rx CANINTF status and clears it from parameter.
+**                          Note that this does not affect to chip CANINTF at all. You can use this 
+**                          with one single readRxTxStatus call.
+*********************************************************************************************************/
+uint8_t MCP_CAN::checkClearRxStatus(uint8_t *status)
+{
+  uint8_t ret;
+  
+  ret = *status & MCP_RX0IF; *status &= ~MCP_RX0IF;
+  
+  if ( ret==0 ) { ret = *status & MCP_RX1IF; *status &= ~MCP_RX1IF; }
+
+  return ret;                
 }

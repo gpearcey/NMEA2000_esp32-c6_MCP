@@ -170,6 +170,10 @@
 #define MCP_20MHz_33k3BPS_CFG2 (0xFF)
 #define MCP_20MHz_33k3BPS_CFG3 (0x87)
 
+// Added from CAN_BUS_SHEILD
+#define MCP_TX_INT      0x1C                                    // Enable all transmit interrup ts
+#define MCP_N_TXBUFFERS (3)
+
 enum CAN_CLOCK {
     MCP_20MHZ,
     MCP_16MHZ,
@@ -444,6 +448,10 @@ class MCP2515
         } RXB[N_RXBUFFERS];
 
         spi_device_handle_t *spi;
+        uint8_t rtr;// added from CAN_BUS_SHEILD
+        uint8_t ext_flg;// added from CAN_BUS_SHEILD
+        uint8_t SPICS;// added from CAN_BUS_SHEILD
+        uint8_t nReservedTx;// added from CAN_BUS_SHEILD
 
     private:
         ERROR setMode(const CANCTRL_REQOP_MODE mode);
@@ -458,6 +466,7 @@ class MCP2515
 
     public:
         MCP2515(spi_device_handle_t *s);
+        MCP2515();
         ERROR reset(void);
         ERROR setConfigMode();
         ERROR setListenOnlyMode();
@@ -485,6 +494,21 @@ class MCP2515
         void clearRXnOVR(void);
         void clearMERR();
         void clearERRIF();
+
+        //Added from CAN_BUS_SHEILD
+        void enableTxInterrupt(bool enable=true);    // enable transmit interrupt
+        void reserveTxBuffers(uint8_t nTxBuf=0) { nReservedTx=(nTxBuf<MCP_N_TXBUFFERS?nTxBuf:MCP_N_TXBUFFERS-1); }
+        uint8_t getLastTxBuffer() { return MCP_N_TXBUFFERS-1; } // read index of last tx buffer
+        uint8_t begin(uint8_t speedset, const uint8_t clockset = MCP_16MHZ);
+        uint8_t trySendMsgBuf(unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, const uint8_t *buf, uint8_t iTxBuf=0xff);  // as sendMsgBuf, but does not have any wait for free buffer
+        inline uint8_t trySendExtMsgBuf(unsigned long id, uint8_t len, const uint8_t *buf, uint8_t iTxBuf=0xff) {  // as trySendMsgBuf, but set ext=1 and rtr=0
+          return trySendMsgBuf(id,1,0,len,buf,iTxBuf);
+        }
+        void clearBufferTransmitIfFlags(uint8_t flags=0);                  // Clear transmit flags according to status
+        uint8_t readRxTxStatus(void);                                      // read has something send or received
+        uint8_t checkClearRxStatus(uint8_t *status);                          // read and clear and return first found rx status bit
+        uint8_t checkClearTxStatus(uint8_t *status, uint8_t iTxBuf=0xff);        // read and clear and return first found or buffer specified tx status bit
+
 };
 
 #endif
