@@ -229,10 +229,22 @@ void MCP2515::setRegisters(const REGISTER reg, const uint8_t values[], const uin
     trans.length = ((2 + ((size_t)n)) * 8);
     trans.tx_buffer = data;
 
-    esp_err_t ret = spi_device_transmit(*spi, &trans);
+    esp_err_t ret = spi_device_transmit(*spi, &trans);//, portMAX_DELAY);
     if (ret != ESP_OK) {
-        printf("spi_device_transmit failed\n");
+        printf("spi_device__queue_trans failed\n");
     }
+
+    //spi_transaction_t* trans_desc = nullptr;
+    //
+    //ret=spi_device_get_trans_result(*spi, &trans_desc, portMAX_DELAY);
+    //if (ret != ESP_OK) {
+    //    printf("spi_device_get_trans_result failed\n");
+    //}
+//
+    //if (trans_desc) {
+    //    delete trans_desc;
+    //}
+
 }
 
 void MCP2515::modifyRegister(const REGISTER reg, const uint8_t mask, const uint8_t data)
