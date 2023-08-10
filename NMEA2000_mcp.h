@@ -30,7 +30,7 @@ based setup. See also NMEA2000 library.
 // CAN_BUS_shield libraries will be originally found on https://github.com/Seeed-Studio/CAN_BUS_Shield
 // That does not work completely with N2k or with Maple mini. So there is developed
 // branch found on https://github.com/ttlappalainen/CAN_BUS_Shield
-#include "mcp2515.h"
+#include "mcp2515_grace.h"
 #include "NMEA2000.h"
 #include "N2kMsg.h"
 #include "can.h"
@@ -133,15 +133,15 @@ protected:
     bool CANSendFrame(unsigned long id, unsigned char len, const unsigned char *buf, bool wait_sent=true);
     bool CANOpen();
     bool CANGetFrame(unsigned long &id, unsigned char &len, unsigned char *buf);
-    bool UseInterrupt() { return N2k_CAN_int_pin!=0xff; }
+    bool UseInterrupt() { return false;};//N2k_CAN_int_pin!=0xff; }
     virtual void InitCANFrameBuffers();
 
 public:
-    tNMEA2000_mcp(unsigned char _N2k_CAN_CS_pin, unsigned char _N2k_CAN_clockset = MCP_16MHZ,
+    tNMEA2000_mcp( spi_device_handle_t *s,unsigned char _N2k_CAN_CS_pin, unsigned char _N2k_CAN_clockset = MCP_16MHZ,
                   unsigned char _N2k_CAN_int_pin = 0xff, uint16_t _rx_frame_buf_size=MCP_CAN_RX_BUFFER_SIZE);
     //void SetSPI(SPIClass *_pSPI) { N2kCAN.setSPI(_pSPI); }
 
-    void InterruptHandler();
+    //void InterruptHandler();
 };
 
 #endif
