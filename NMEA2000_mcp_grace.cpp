@@ -22,6 +22,7 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 #include "NMEA2000_mcp.h"
+#include "esp_log.h"
 
 #if defined(ARDUINO_AVR_MEGA) || defined(ARDUINO_AVR_MEGA2560) || defined(ARDUINO_AVR_UNO)
 #define USE_SREG 1
@@ -177,26 +178,31 @@ bool tNMEA2000_mcp::CANOpen() {
 //*****************************************************************************
 bool tNMEA2000_mcp::CANGetFrame(unsigned long &id, unsigned char &len, unsigned char *buf) {
   bool HasFrame=false;
-
+struct can_frame frame;
     if ( UseInterrupt() ) {
 
       HasFrame=pRxBuffer->GetFrame(id,len,buf);
 
+      ESP_LOGD("CANgetFrame: ", "use interupt");
     } else {
-      if ( N2kCAN.checkReceive() ) {           // check if data coming
-          struct can_frame frame;
-          N2kCAN.readMessage(&frame);    // read data,  len: data length, buf: data buf
+      if ( N2kCAN.readMessage(&frame) == MCP2515::ERROR_OK) {           // check if data coming
+          //struct can_frame frame;
+          //N2kCAN.readMessage(&frame);    // read data,  len: data length, buf: data buf
           id = frame.id;
           len = frame.len;
-          memcpy(buf, frame.buf, 8);
+          memcpy(buf, frame.buf, len);
           //id = N2kCAN.getCanId();
-
+          ESP_LOGD("CANgetFrame: ", "ID: %lx, DATA[0] %x", id, buf[0]);
           HasFrame=true;
       }
     }
 
     // if (HasFrame) PrintDecodedCanIdAndLen(id,len);
-
+    ESP_LOGD("CANgetFrame: ", "called");
+    
+    //ESP_LOGI("CANgetFrame: ", "called");
+    //ESP_LOGI("CANgetFrame: ", "called");
+    
     return HasFrame;
 }
 
