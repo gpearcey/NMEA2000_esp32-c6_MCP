@@ -108,16 +108,16 @@ bool tNMEA2000_mcp::CANSendFrame(unsigned long id, unsigned char len, const unsi
 #ifdef USE_SREG
     uint8_t SaveSREG = SREG;   // save interrupt flag
 #endif
-    volatile tFrameBuffer *pTxBuf=0;
-    if ( UseInterrupt() ) {
-      noInterrupts();   // disable interrupts
+     tFrameBuffer *pTxBuf=0;
+
+      //noInterrupts();   // disable interrupts CHEC - this could cause issues its an Arduino function
       pTxBuf=(wait_sent?pTxBufferFastPacket:pTxBuffer);
       // If buffer is not empty, it has pending messages, so add new message to it
       if ( !pTxBuf->IsEmpty() ) {
         result=pTxBuf->AddFrame(id,len,buf);
       } else { // If we did not use buffer, send it directly
         DbgStartMcpSpeed;
-        result=(N2kCAN.trySendExtMsgBuf(id, len, buf, wait_sent?N2kCAN.getLastTxBuffer():0xff)==CAN_OK);
+        result = (N2kCAN.sendMessage(id, len, buf));
         DbgEndMcpSpeed;
         if ( !result ) {
           DbgClearMcpSpeed;
@@ -126,12 +126,7 @@ bool tNMEA2000_mcp::CANSendFrame(unsigned long id, unsigned char len, const unsi
       }
 #ifdef USE_SREG
       SREG = SaveSREG;   // restore the interrupt flag
-#else
-      interrupts();
-#endif  
-    } else {
-      result=(N2kCAN.trySendExtMsgBuf(id, len, buf, wait_sent?N2kCAN.getLastTxBuffer():0xff)==CAN_OK);
-    }
+#endif
 
     DbgTestMcpSpeed { DbgPrintN2kMcpSpeed("Send elapsed: "); DbgPrintLnN2kMcpSpeed(McpElapsed); }
 
@@ -163,22 +158,22 @@ bool tNMEA2000_mcp::CANOpen() {
 
     //N2kCAN.init_CS(N2k_CAN_CS_pin);
     N2kCAN.reserveTxBuffers(1); // Reserve one buffer for fast packet.
-    IsOpen=(N2kCAN.begin(N2k_CAN_CS_pin)==CAN_OK && N2kCAN.setBitrate(CAN_250KBPS,MCP_8MHZ)==CAN_OK );
+    IsOpen=(N2kCAN.begin(N2k_CAN_CS_pin)==ESP_OK && N2kCAN.setBitrate(CAN_250KBPS,MCP_8MHZ)==ESP_OK );
 
-    if (IsOpen && UseInterrupt() ) {
-#ifdef USE_SREG
-    uint8_t SaveSREG = SREG;   // save interrupt flag
-#endif
-      noInterrupts();
-      N2kCAN.enableTxInterrupt();
-      attachInterrupt(digitalPinToInterrupt(N2k_CAN_int_pin), Can1Interrupt, FALLING);
-      InterruptHandler(); // read out possible data to clear isr bit.
-#ifdef USE_SREG
-      SREG = SaveSREG;   // restore the interrupt flag
-#else
-      interrupts();
-#endif  
-    }
+//    if (IsOpen && UseInterrupt() ) {
+//#ifdef USE_SREG
+//    uint8_t SaveSREG = SREG;   // save interrupt flag
+//#endif
+//      //noInterrupts();
+//      N2kCAN.enableTxInterrupt();
+//      attachInterrupt(digitalPinToInterrupt(N2k_CAN_int_pin), Can1Interrupt, FALLING);
+//      InterruptHandler(); // read out possible data to clear isr bit.
+//#ifdef USE_SREG
+//      SREG = SaveSREG;   // restore the interrupt flag
+//#else
+//      //interrupts();
+//#endif  
+//    }
 
     CanInUse=IsOpen;
 
@@ -193,16 +188,16 @@ bool tNMEA2000_mcp::CANGetFrame(unsigned long &id, unsigned char &len, unsigned 
 #ifdef USE_SREG
       uint8_t SaveSREG = SREG;   // save interrupt flag
 #endif  
-      noInterrupts();   // disable interrupts
+      //noInterrupts();   // disable interrupts
       HasFrame=pRxBuffer->GetFrame(id,len,buf);
 #ifdef USE_SREG
       SREG = SaveSREG;   // restore the interrupt flag
 #else
-      interrupts();
+      //interrupts();
 #endif  
     } else {
-      if ( CAN_MSGAVAIL == N2kCAN.checkReceive() ) {           // check if data coming
-          N2kCAN.readMsgBuf(id,&len, buf);    // read data,  len: data length, buf: data buf
+      if ( N2kCAN.checkReceive() ) {           // check if data coming
+          N2kCAN.readMessage(&id,&len, buf);    // read data,  len: data length, buf: data buf
           //id = N2kCAN.getCanId();
 
           HasFrame=true;
@@ -233,12 +228,12 @@ void tNMEA2000_mcp::InterruptHandler() {
     RxTxStatus=N2kCAN.readRxTxStatus();  // One single read on every loop
     uint8_t tempRxTxStatus=RxTxStatus;      // Use local status inside loop
     uint8_t status;
-    volatile can_frame *frame;
+    can_frame *frame;
 
     while ( (status=N2kCAN.checkClearRxStatus(&tempRxTxStatus))!=0 ) {           // check if data is coming
       if ( (frame=pRxBuffer->GetWriteFrame())!=0 ) {
         uint8_t ext,rtr;
-        N2kCAN.readMsgBufID(&(frame->id),&(frame->len),frame->buf);
+        N2kCAN.readMessage(&(frame->id),&(frame->len),frame->buf);
         pRxBuffer->IncWrite();
 //      asm volatile ("" : : : "memory");
         //N2kCAN.readMsgBuf(&len,buf);
@@ -247,7 +242,7 @@ void tNMEA2000_mcp::InterruptHandler() {
       } else { // Buffer full, skip frame
         can_frame FrameToSkip;
         uint8_t ext,rtr;
-        N2kCAN.readMsgBufID(&(FrameToSkip.id),&(FrameToSkip.len),FrameToSkip.buf);
+        N2kCAN.readMessage(&(FrameToSkip.id),&(FrameToSkip.len),FrameToSkip.buf);
       }
     }
 
@@ -255,7 +250,7 @@ void tNMEA2000_mcp::InterruptHandler() {
       // CanIntChk=tempRxTxStatus;
       if ( (status=N2kCAN.checkClearTxStatus(&tempRxTxStatus,N2kCAN.getLastTxBuffer()))!=0 ) {
         frame=pTxBufferFastPacket->GetReadFrame();
-        N2kCAN.sendExtMsgBuf(status,frame->id, frame->len, frame->buf);
+        N2kCAN.sendMessage(frame->id, frame->len, frame->buf);
         pTxBufferFastPacket->DecRead();
       }
     } else { // Nothing to send, so clear flag for this buffer
@@ -266,7 +261,7 @@ void tNMEA2000_mcp::InterruptHandler() {
     if ( !pTxBuffer->IsEmpty() ) { // Do we have something to send on single frame buffer
       while ( (status=N2kCAN.checkClearTxStatus(&tempRxTxStatus))!=0 && 
               (frame=pTxBuffer->GetReadFrame())!=0 ) {
-        N2kCAN.sendExtMsgBuf(status, frame->id, frame->len, frame->buf);
+        N2kCAN.sendMessage(frame->id, frame->len, frame->buf);
         pTxBuffer->DecRead();
       }
     } 

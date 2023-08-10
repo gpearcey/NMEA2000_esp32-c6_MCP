@@ -173,6 +173,24 @@
 // Added from CAN_BUS_SHEILD
 #define MCP_TX_INT      0x1C                                    // Enable all transmit interrup ts
 #define MCP_N_TXBUFFERS (3)
+#define MCP_STAT_TXIF_MASK   (0xA8)
+#define MCP_STAT_TX0IF       (0x08)
+#define MCP_STAT_TX1IF       (0x20)
+#define MCP_STAT_TX2IF       (0x80)
+#define MCP_STAT_RXIF_MASK   (0x03)
+#define MCP_STAT_RX0IF (1<<0)
+#define MCP_STAT_RX1IF (1<<1)
+
+// CANINTF Register Bits
+
+#define MCP_RX0IF       0x01
+#define MCP_RX1IF       0x02
+#define MCP_TX0IF       0x04
+#define MCP_TX1IF       0x08
+#define MCP_TX2IF       0x10
+#define MCP_ERRIF       0x20
+#define MCP_WAKIF       0x40
+#define MCP_MERRF       0x80
 
 enum CAN_CLOCK {
     MCP_20MHZ,
@@ -479,9 +497,9 @@ class MCP2515
         ERROR setFilterMask(const MASK num, const bool ext, const uint32_t ulData);
         ERROR setFilter(const RXF num, const bool ext, const uint32_t ulData);
         ERROR sendMessage(const TXBn txbn, const struct can_frame *frame);
-        ERROR sendMessage(const struct can_frame *frame);
-        ERROR readMessage(const RXBn rxbn, struct can_frame *frame);
-        ERROR readMessage(struct can_frame *frame);
+        ERROR sendMessage(unsigned long id, uint8_t len, const uint8_t *buf);
+        ERROR readMessage(const RXBn rxbn, unsigned long *id, uint8_t *len, uint8_t *buf);
+        ERROR readMessage( unsigned long *id, uint8_t *len, uint8_t *buf);
         bool checkReceive(void);
         bool checkError(void);
         uint8_t getErrorFlags(void);
@@ -496,10 +514,11 @@ class MCP2515
         void clearERRIF();
 
         //Added from CAN_BUS_SHEILD
+        esp_err_t begin(unsigned char cs_pin);
         void enableTxInterrupt(bool enable=true);    // enable transmit interrupt
         void reserveTxBuffers(uint8_t nTxBuf=0) { nReservedTx=(nTxBuf<MCP_N_TXBUFFERS?nTxBuf:MCP_N_TXBUFFERS-1); }
         uint8_t getLastTxBuffer() { return MCP_N_TXBUFFERS-1; } // read index of last tx buffer
-        uint8_t begin(uint8_t speedset, const uint8_t clockset = MCP_16MHZ);
+        //uint8_t begin(uint8_t speedset, const uint8_t clockset = MCP_16MHZ);
         uint8_t trySendMsgBuf(unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, const uint8_t *buf, uint8_t iTxBuf=0xff);  // as sendMsgBuf, but does not have any wait for free buffer
         inline uint8_t trySendExtMsgBuf(unsigned long id, uint8_t len, const uint8_t *buf, uint8_t iTxBuf=0xff) {  // as trySendMsgBuf, but set ext=1 and rtr=0
           return trySendMsgBuf(id,1,0,len,buf,iTxBuf);
@@ -508,6 +527,7 @@ class MCP2515
         uint8_t readRxTxStatus(void);                                      // read has something send or received
         uint8_t checkClearRxStatus(uint8_t *status);                          // read and clear and return first found rx status bit
         uint8_t checkClearTxStatus(uint8_t *status, uint8_t iTxBuf=0xff);        // read and clear and return first found or buffer specified tx status bit
+        uint8_t trySendMsgBuf(unsigned long id, uint8_t len, const uint8_t *buf, uint8_t iTxBuf);
 
 };
 

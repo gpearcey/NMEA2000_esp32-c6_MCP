@@ -33,6 +33,7 @@ based setup. See also NMEA2000 library.
 #include "mcp2515.h"
 #include "NMEA2000.h"
 #include "N2kMsg.h"
+#include "can.h"
 
 // Define size of
 #ifndef MCP_CAN_RX_BUFFER_SIZE
@@ -49,47 +50,47 @@ private:
   bool IsOpen;
 
 protected:
-  struct tCANFrame {
-    unsigned long id; // can identifier
-    uint8_t len; // length of data
-    uint8_t buf[8];
-  };
+  //struct tCANFrame {
+  //  unsigned long id; // can identifier
+  //  uint8_t len; // length of data
+  //  uint8_t buf[8];
+  //};
 
   class tFrameBuffer {
   protected:
-    volatile size_t head;
-    volatile size_t tail;
-    volatile size_t count;
-    volatile size_t size;
-    volatile tCANFrame *buffer;
+    size_t head;
+    size_t tail;
+    size_t count;
+    size_t size;
+    can_frame *buffer;
   public:
-    tFrameBuffer(size_t _size) : head(0), tail(0), count(0), size(_size) { if ( size<2 ) size=2; buffer=new tCANFrame[size]; }
+    tFrameBuffer(size_t _size) : head(0), tail(0), count(0), size(_size) { if ( size<2 ) size=2; buffer=new can_frame[size]; }
 
-    void IncWrite() volatile {
+    void IncWrite() {
       if ( count==size ) return;
       head = (head + 1) % size;
       count++;
     }
     
-    void DecRead() volatile {
+    void DecRead()  {
       if ( count==0 ) return;
       tail = (tail + 1) % size;
       count--;
     }
     
-    volatile tCANFrame *GetWriteFrame() volatile {
+    can_frame *GetWriteFrame() {
       if ( count==size ) return 0;
       
       return &(buffer[head]);
     }
 
-    volatile tCANFrame *GetReadFrame() volatile {
+     can_frame *GetReadFrame()  {
       if ( count==0 ) return 0;
       
       return &(buffer[tail]);
     }
 
-    bool AddFrame(unsigned long id, unsigned char len, const unsigned char *buf) volatile {
+    bool AddFrame(unsigned long id, unsigned char len, const unsigned char *buf) {
 
       if ( count==size || len>8 ) return false;
 
@@ -102,7 +103,7 @@ protected:
       return true;
     }
     
-    bool GetFrame(unsigned long &id, unsigned char &len, unsigned char *buf) volatile {
+    bool GetFrame(unsigned long &id, unsigned char &len, unsigned char *buf)  {
       if ( IsEmpty() ) return false;
 
       id = buffer[tail].id;
@@ -112,9 +113,9 @@ protected:
       return ( (id!=0) && (len!=0) );
     }
 
-    bool IsEmpty() volatile { return (count == 0); }
+    bool IsEmpty()  { return (count == 0); }
     
-    void Clear() volatile { count=0; head=0; tail=0; }
+    void Clear()  { count=0; head=0; tail=0; }
   };
 
 #if defined(DEBUG_NMEA2000_ISR)
@@ -124,9 +125,9 @@ protected:
 #endif
   
   protected:
-  volatile tFrameBuffer *pRxBuffer;
-  volatile tFrameBuffer *pTxBuffer;
-  volatile tFrameBuffer *pTxBufferFastPacket;
+  tFrameBuffer *pRxBuffer;
+  tFrameBuffer *pTxBuffer;
+  tFrameBuffer *pTxBufferFastPacket;
 
 protected:
     bool CANSendFrame(unsigned long id, unsigned char len, const unsigned char *buf, bool wait_sent=true);
