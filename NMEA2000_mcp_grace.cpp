@@ -111,7 +111,7 @@ bool tNMEA2000_mcp::CANSendFrame(unsigned long id, unsigned char len, const unsi
         struct can_frame frame;
         frame.len = len>8?8:len;
         memcpy(frame.buf, buf, 8);
-        frame.id = id + 0x80000000; //SPI driver requires MSB to be set
+        frame.id = id | 0x80000000; //SPI driver requires MSB to be set
         result = N2kCAN.sendMessage(&frame);
         ESP_LOGD(TAG, "CANSendFrame called");
         if (result ==  0) {
