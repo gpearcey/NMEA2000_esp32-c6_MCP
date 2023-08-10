@@ -46,7 +46,7 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # define DbgTestMcpSpeed
 # define DbgClearMcpSpeed
 #endif
-
+static const char* TAG = "MCP";
 //struct tCANFrame {
 //  uint32_t id; // can identifier
 //  uint8_t len; // length of data
@@ -105,22 +105,15 @@ tNMEA2000_mcp::tNMEA2000_mcp( spi_device_handle_t *s, unsigned char _N2k_CAN_CS_
 bool tNMEA2000_mcp::CANSendFrame(unsigned long id, unsigned char len, const unsigned char *buf, bool wait_sent) {
   MCP2515::ERROR result;
   //tFrameBuffer *pTxBuf=0;
+    ESP_LOGD(TAG, "ID to send: %lx",id);
+    ESP_LOGD(TAG, "DLC to send: %u",len);
+    ESP_LOGD(TAG, "DATA[0] to send: %u",buf[0]);
         struct can_frame frame;
-        frame.len = len;
+        frame.len = len>8?8:len;
         memcpy(frame.buf, buf, 8);
-        frame.id = id;
-        result = (N2kCAN.sendMessage(&frame));
-        //frame.id = 0x89f80202;
-	      //frame.len = 8;
-	      //frame.buf[0] = 0x01;
-	      //frame.buf[1] = 0x02;
-	      //frame.buf[2] = 0x03;
-	      //frame.buf[3] = 0x04;
-	      //frame.buf[4] = 0x05;
-	      //frame.buf[5] = 0x06;
-	      //frame.buf[6] = 0x07;
-	      //frame.buf[7] = 0x08;
-        //result = N2kCAN.sendMessage(&frame);
+        frame.id = id + 0x80000000; //SPI driver requires MSB to be set
+        result = N2kCAN.sendMessage(&frame);
+        ESP_LOGD(TAG, "CANSendFrame called");
         if (result ==  0) {
           return true;
         }
@@ -183,7 +176,7 @@ struct can_frame frame;
 
       HasFrame=pRxBuffer->GetFrame(id,len,buf);
 
-      ESP_LOGD("CANgetFrame: ", "use interupt");
+      //ESP_LOGD("CANgetFrame: ", "use interupt");
     } else {
       if ( N2kCAN.readMessage(&frame) == MCP2515::ERROR_OK) {           // check if data coming
           //struct can_frame frame;
@@ -192,13 +185,13 @@ struct can_frame frame;
           len = frame.len;
           memcpy(buf, frame.buf, len);
           //id = N2kCAN.getCanId();
-          ESP_LOGD("CANgetFrame: ", "ID: %lx, DATA[0] %x", id, buf[0]);
+          //ESP_LOGD("CANgetFrame: ", "ID: %lx, DATA[0] %x", id, buf[0]);
           HasFrame=true;
       }
     }
 
     // if (HasFrame) PrintDecodedCanIdAndLen(id,len);
-    ESP_LOGD("CANgetFrame: ", "called");
+    //ESP_LOGD("CANgetFrame: ", "called");
     
     //ESP_LOGI("CANgetFrame: ", "called");
     //ESP_LOGI("CANgetFrame: ", "called");
