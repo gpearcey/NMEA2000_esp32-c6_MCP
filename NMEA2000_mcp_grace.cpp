@@ -46,7 +46,7 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # define DbgTestMcpSpeed
 # define DbgClearMcpSpeed
 #endif
-static const char* TAG = "MCP";
+static const char* TAG = "NMEA2000_mcp_grace.cpp";
 //struct tCANFrame {
 //  uint32_t id; // can identifier
 //  uint8_t len; // length of data
@@ -103,9 +103,10 @@ tNMEA2000_mcp::tNMEA2000_mcp( spi_device_handle_t *s, unsigned char _N2k_CAN_CS_
 
 //*****************************************************************************
 bool tNMEA2000_mcp::CANSendFrame(unsigned long id, unsigned char len, const unsigned char *buf, bool wait_sent) {
+  ESP_LOGI("NMEA2000_mcp_grace.cpp: ", " mcp CANSendFrame called");
   MCP2515::ERROR result;
   //tFrameBuffer *pTxBuf=0;
-    ESP_LOGD(TAG, "ID to send: %lx",id);
+    ESP_LOGI(TAG, "ID to send: %lx",id);
     ESP_LOGD(TAG, "DLC to send: %u",len);
     ESP_LOGD(TAG, "DATA[0] to send: %u",buf[0]);
         struct can_frame frame;
@@ -191,7 +192,7 @@ struct can_frame frame;
     }
 
     // if (HasFrame) PrintDecodedCanIdAndLen(id,len);
-    //ESP_LOGD("CANgetFrame: ", "called");
+    ESP_LOGD("CANgetFrame: ", "called");
     
     //ESP_LOGI("CANgetFrame: ", "called");
     //ESP_LOGI("CANgetFrame: ", "called");
