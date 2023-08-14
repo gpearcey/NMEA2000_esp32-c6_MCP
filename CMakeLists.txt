@@ -1,1 +1,1 @@
-idf_component_register(SRCS "mcp2515_grace.cpp" "NMEA2000_mcp_grace.cpp" INCLUDE_DIRS "." REQUIRES driver NMEA2000)
+idf_component_register(SRCS "mcp2515.cpp" "NMEA2000_mcp.cpp" INCLUDE_DIRS "." REQUIRES driver NMEA2000)
