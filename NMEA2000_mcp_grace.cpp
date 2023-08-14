@@ -137,17 +137,26 @@ void tNMEA2000_mcp::InitCANFrameBuffers() {
 
     tNMEA2000::InitCANFrameBuffers(); // call main initialization
 }
-
+bool tNMEA2000_mcp::CANinit(){
+  if(N2kCAN.init_SPI()==ESP_OK){return true;};
+  return false;
+}
 //*****************************************************************************
 bool tNMEA2000_mcp::CANOpen() {
-    if (IsOpen) return true;
-
-    if (CanInUse) return false; // currently prevent accidental second instance. Maybe possible in future.
-
+  ESP_LOGI("nmea2000_grace", "CAN Open, cs pin: %i", N2k_CAN_CS_pin);
+    if (IsOpen){
+      ESP_LOGI("nmea2000_grace", "CAN is already Open, cs pin: %i", N2k_CAN_CS_pin);
+      return true;
+    }
+    if (CanInUse){
+       ESP_LOGI("nmea2000_grace", "CAN isin use, cs pin: %i", N2k_CAN_CS_pin);
+      //return false; // currently prevent accidental second instance. Maybe possible in future.
+    } 
     //N2kCAN.reserveTxBuffers(1); // Reserve one buffer for fast packet.
     IsOpen=(N2kCAN.begin(N2k_CAN_CS_pin)==ESP_OK && N2kCAN.setBitrate(CAN_250KBPS,MCP_8MHZ)==ESP_OK );
 
     N2kCAN.setNormalMode();
+    ESP_LOGI("nmea2000_grace", "CAN Open, cs pin: %i, finished setup", N2k_CAN_CS_pin);
 
 //    if (IsOpen && UseInterrupt() ) {
 //#ifdef USE_SREG
@@ -167,6 +176,17 @@ bool tNMEA2000_mcp::CANOpen() {
     CanInUse=IsOpen;
 
     return IsOpen;
+}
+bool tNMEA2000_mcp::CANAddDevice() {
+    esp_err_t result = N2kCAN.add_device(N2k_CAN_CS_pin);
+    if (result==ESP_OK)
+    {
+      return true;
+    }
+    else {
+      return false;
+    }
+
 }
 
 //*****************************************************************************

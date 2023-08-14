@@ -132,6 +132,7 @@ protected:
 protected:
     bool CANSendFrame(unsigned long id, unsigned char len, const unsigned char *buf, bool wait_sent=true);
     bool CANOpen();
+    
     bool CANGetFrame(unsigned long &id, unsigned char &len, unsigned char *buf);
     bool UseInterrupt() { return false;};//N2k_CAN_int_pin!=0xff; }
     virtual void InitCANFrameBuffers();
@@ -140,7 +141,8 @@ public:
     tNMEA2000_mcp( spi_device_handle_t *s,unsigned char _N2k_CAN_CS_pin, unsigned char _N2k_CAN_clockset = MCP_16MHZ,
                   unsigned char _N2k_CAN_int_pin = 0xff, uint16_t _rx_frame_buf_size=MCP_CAN_RX_BUFFER_SIZE);
     //void SetSPI(SPIClass *_pSPI) { N2kCAN.setSPI(_pSPI); }
-
+    bool CANAddDevice();
+    bool CANinit();
     //void InterruptHandler();
 };
 

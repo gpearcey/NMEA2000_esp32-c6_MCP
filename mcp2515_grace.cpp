@@ -4,12 +4,11 @@
 #include "freertos/task.h"
 
 #include "mcp2515_grace.h"
+#include "esp_log.h"
 
 #define MISO 2
 #define MOSI 7
 #define SCK  6
-#define CS   16
-#define INT 4
 
 
 const struct MCP2515::TXBn_REGS MCP2515::TXB[MCP2515::N_TXBUFFERS] = {
@@ -27,20 +26,71 @@ MCP2515::MCP2515(spi_device_handle_t *s)
 {
     spi = s;
 }
-
-esp_err_t MCP2515::begin(int cs_pin)
-{
-
-    // Set up SPI
-    //spi_device_handle_t spi;
-    // ESP32SIM800 START
+esp_err_t MCP2515::init_SPI(){
     esp_err_t ret;
     spi_bus_config_t buscfg={};
     buscfg.miso_io_num=MISO;
     buscfg.mosi_io_num=MOSI;
     buscfg.sclk_io_num=SCK;
     buscfg.quadwp_io_num=-1;
-    buscfg.quadhd_io_num=-1;  
+    buscfg.quadhd_io_num=-1; 
+    
+    //Initialize the SPI bus
+    ret=spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+    assert(ret==ESP_OK);
+    return ret;
+}
+
+esp_err_t MCP2515::begin(int cs_pin)
+{
+    ESP_LOGI("mcp2515_grace", "Adding Device: CS pin: %i", cs_pin);
+    esp_err_t ret;
+    // Set up SPI
+
+   // if (cs_pin == 16){
+   //     spi_bus_config_t buscfg={};
+   //     buscfg.miso_io_num=MISO;
+   //     buscfg.mosi_io_num=MOSI;
+   //     buscfg.sclk_io_num=SCK;
+   //     buscfg.quadwp_io_num=-1;
+   //     buscfg.quadhd_io_num=-1; 
+   //     
+   //     //Initialize the SPI bus
+   //     ret=spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+   //     assert(ret==ESP_OK);
+   // }
+    
+ 
+//
+    spi_device_interface_config_t devcfg={};
+
+    devcfg.clock_speed_hz=1*1000*1000,               //Clock out at 1 MHz
+    devcfg.mode=0,                                   
+    devcfg.spics_io_num=cs_pin,                          //Chip select
+    devcfg.queue_size=1024,
+
+
+    //Attach the MCP2515 to the SPI bus
+    
+    ret=spi_bus_add_device(SPI2_HOST, &devcfg, &*spi);
+    assert(ret==ESP_OK);
+    ESP_LOGI("mcp2515_grace", "Adding Device: CS pin: %i", cs_pin);
+    //devcfg.clock_speed_hz=1*1000*1000,               //Clock out at 1 MHz
+    //devcfg.mode=0,                                   
+    //devcfg.spics_io_num=cs_pin2,                          //Chip select
+    //devcfg.queue_size=1024,
+    //ret=spi_bus_add_device(SPI2_HOST, &devcfg, &*spi);
+    //assert(ret==ESP_OK);
+
+
+    return ret;
+
+
+}
+esp_err_t MCP2515::add_device(int cs_pin)
+{
+
+    esp_err_t ret;
 
     spi_device_interface_config_t devcfg={};
 
@@ -49,16 +99,11 @@ esp_err_t MCP2515::begin(int cs_pin)
     devcfg.spics_io_num=cs_pin,                          //Chip select
     devcfg.queue_size=1024,
 
-    //Initialize the SPI bus
-    ret=spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
-    assert(ret==ESP_OK);
     //Attach the MCP2515 to the SPI bus
     ret=spi_bus_add_device(SPI2_HOST, &devcfg, &*spi);
     assert(ret==ESP_OK);
-    // ESP32SIM800 END 
-
+    
     return ret;
-
 
 }
 

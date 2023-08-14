@@ -459,6 +459,8 @@ class MCP2515
     public:
         MCP2515(spi_device_handle_t *s);
         esp_err_t begin(int cs_pin);
+        esp_err_t init_SPI();
+        esp_err_t add_device(int cs_pin);
         ERROR reset(void);
         ERROR setConfigMode();
         ERROR setListenOnlyMode();
